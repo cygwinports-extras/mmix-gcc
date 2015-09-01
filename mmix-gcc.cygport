@@ -1,0 +1,75 @@
+TOOLCHAIN_TARGET="mmix"
+inherit toolchain
+
+NAME="mmix-gcc"
+VERSION=5.2.0
+RELEASE=1
+CATEGORY="Devel"
+SUMMARY="GCC for MMIX toolchain"
+DESCRIPTION="The GNU Compiler Collection includes front ends for C, C++,
+Objective-C, Fortran, Java, and Ada, as well as libraries for these languages
+(libstdc++, libgcj, etc.).  This package provides cross-compilers for the
+Newlib embedded platforms."
+HOMEPAGE="http://gcc.gnu.org/"
+
+case ${VERSION} in
+*.*-20[1-9][0-9][01][0-9][0-3][0-9])
+	SRC_URI="mirror://gcc/snapshots/${VERSION}/gcc-${VERSION}.tar.bz2" ;;
+*)	SRC_URI="mirror://gnu/gcc/gcc-${VERSION}/gcc-${VERSION}.tar.bz2" ;;
+esac
+SRC_DIR="gcc-${VERSION}"
+PATCH_URI="
+	5.2-lto-plugin-soname.patch
+	4.8-textdomain.patch
+"
+
+REQUIRES="mmix-binutils mmix-newlib"
+
+src_compile() {
+	cd ${B}
+
+	if [ -f /usr/$TOOLCHAIN_TARGET/sys-include/limits.h ] && ! defined BOOTSTRAP
+	then
+		with_headers=
+		disable_libs=
+		limits_h_test=true
+	else
+		with_headers="--without-headers"
+		disable_libs="--disable-libquadmath --disable-libssp --disable-libstdc++-v3"
+		limits_h_test=false
+	fi
+
+	cygconf --libexecdir=/usr/lib \
+		$with_headers \
+		--enable-languages=c,c++,lto \
+		--disable-shared --enable-static \
+		--enable-multilib \
+		--enable-version-specific-runtime-libs \
+		--disable-libatomic \
+		--disable-libgomp \
+		--disable-libitm \
+		$disable_libs \
+		--disable-libstdcxx-pch \
+		--with-gnu-as --with-gnu-ld \
+		--with-newlib \
+		--with-system-zlib
+
+	cygmake LIMITS_H_TEST=$limits_h_test
+}
+
+src_install() {
+	cd ${B}
+	cyginstall -j1
+
+	# Remove Cygwin-host libiberty.a
+	rm -f ${D}/usr/lib/libiberty.a
+
+	find ${D} -name '*-gdb.py' -delete
+
+	rm -fr ${D}/usr/share/gcc-${VERSION}/python/
+
+	# conflicts with native gcc
+	rm -fr ${D}/usr/share/{info,man/man7}
+}
+
+KEEP_LA_FILES="none"
